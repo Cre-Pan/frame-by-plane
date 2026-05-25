@@ -1,0 +1,32 @@
+schema_version = "1.0.0"
+
+id = "frame_by_plane"
+version = "2.20.0"
+name = "Frame by Plane"
+tagline = "Import image sequences as controllable animation planes"
+maintainer = "Alessandro Pannoli <pannoli312@gmail.com>"
+type = "add-on"
+
+tags = ["Animation", "Import-Export"]
+blender_version_min = "5.1.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2026 Alessandro Pannoli",
+]
+
+[permissions]
+files = "Import image sequences and save render frames on disk"
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  ".*",
+  "*.zip",
+  "*.blend1",
+  "*.bak",
+  "_fbp_update_backups/",
+]

@@ -1,0 +1,31 @@
+# Blender backup files
+*.blend1
+*.blend2
+*.blend@
+*.blend~
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local builds
+build/
+dist/
+*.zip
+!releases/*.zip
+_fbp_update_backups/
+
+# Render output
+FBP_Render_Frames/
+*.exr
+*.mp4
+*.mov
