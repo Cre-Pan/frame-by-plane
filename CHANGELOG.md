@@ -1,23 +1,30 @@
 # Changelog
 
-## v2.20.0
+## 1.5.1
 
-- Added `blender_manifest.toml` for Blender Extensions.
-- Replaced placeholder license with GPL-3.0-or-later license text.
-- Split shared constants into `constants.py`.
-- Split path/file helper functions into `path_utils.py`.
-- Kept `profiling.py` from v2.19.
-- Kept `core.py` as main module for stability.
+### Changed
 
-## v2.19.0
+- Renamed the extension from **Blender Slides PRO** to **Slides Pro** to comply with Blender Extensions naming rules.
+- Updated the extension description to explain that the add-on is a PowerPoint-style presentation manager for Blender scenes.
+- Replaced Gumroad as the public support channel with GitHub Issues.
+- Moved the general product description out of the version history and into the proper description/README area.
 
-- Added import profiling report.
-- Added `FBP_Last_Import_Profile` text datablock.
-- Added `Import Report` button.
+### Fixed
 
-## v2.18.0
+- Removed startup registration of the notes draw handler.
+- Presentation handlers now start only when the user manually starts a presentation.
+- Presentation handlers are removed when playback is stopped or when the add-on is disabled.
 
-- Fast import by default.
-- Optional main folders as separate scenes.
-- Default vertical import, 4:3 camera and Fit to Camera.
-- Removed automatic timeline range resizing.
+## 1.5.0
+
+### Added
+
+- Slide list management from the 3D View sidebar.
+- Per-slide frame ranges.
+- Per-slide camera assignment.
+- Slide notes.
+- Checkpoints that pause playback at specific frames.
+- Smart next/previous navigation.
+- Hard-skip navigation without transitions.
+- Projection window for clean presentation playback.
+- Keyboard shortcuts for slide navigation.
