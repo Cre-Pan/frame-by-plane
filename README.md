@@ -1,50 +1,39 @@
-# Frame by Plane
+# Frame by Plane v2.20.1
 
-Frame by Plane is a Blender add-on for importing image sequences as controllable 2D planes in 3D space.
+Frame by Plane imports 2D image sequences as controllable animation planes inside Blender.
 
-It is designed for animation, multiplane setups, painted backgrounds, parallax scenes and stop-motion style workflows.
+## Main workflow
 
-## Features
+- Import image folders as layers.
+- Organize layers in Blender Collections.
+- Use vertical 2D multiplane setups by default.
+- Fit planes to a 4:3 camera.
+- Build larger projects as separate Blender Scenes.
+- Render frame ranges through a clean background render launcher.
 
-- Import folders of images as animated planes
-- Organize layers using Blender Collections
-- Build vertical multiplane scenes by default
-- Fit planes automatically to a 4:3 camera
-- Split main project folders into separate Blender Scenes
-- Skip hidden folders and files starting with `_`
-- Fast import mode for larger projects
-- Background frame rendering helper
-- Import profiling report for debugging slow projects
+## Blender Extensions status
 
-## Requirements
+This package includes:
 
-- Blender 5.1 or newer
+- `blender_manifest.toml`
+- SPDX license declaration
+- `LICENSE.txt`
+- no third-party Python dependencies
+- no bundled fonts or binary assets
+- declared file-system permission
 
-## Installation
-
-Download the latest release ZIP and install it from Blender:
-
-```text
-Edit > Preferences > Add-ons > Install...
-```
-
-Then enable **Frame by Plane**.
-
-## Development install
-
-Clone this repository into Blender's add-ons folder, or install the repository ZIP from Blender.
-
-## Project structure
+## Developer structure
 
 ```text
-__init__.py                 Add-on entry point
-core.py                     Main add-on logic
-constants.py                Shared constants
-path_utils.py               Path and filename helpers
-profiling.py                Import profiling utilities
-blender_manifest.toml       Blender Extensions manifest
+__init__.py
+core.py
+constants.py
+path_utils.py
+profiling.py
+blender_manifest.toml
+README.md
+CHANGELOG.md
+LICENSE.txt
 ```
 
-## License
-
-GPL-3.0-or-later.
+`core.py` is still the main module. Refactor is intentionally gradual to avoid breaking the addon.

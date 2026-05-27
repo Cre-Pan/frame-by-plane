@@ -4,7 +4,6 @@
 - [ ] Test enable/disable without registration errors
 - [ ] Test on a clean Blender 5.1 profile
 - [ ] Confirm `blender_manifest.toml` fields are final
-- [ ] Confirm website/support link before public upload
 - [ ] Confirm GPL-3.0-or-later is the intended license
 - [ ] Remove experimental/private features before publication if needed
 - [ ] Add screenshots and a short public description

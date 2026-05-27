@@ -29,8 +29,6 @@ COLOR_ENUM_ITEMS = [
 ]
 
 preview_collections = {}
-addon_keymaps = []
-
 FBP_SUPPORTED_IMAGE_EXT = {'.png', '.jpg', '.jpeg', '.webp', '.exr', '.tif', '.tiff'}
 
 FBP_TECHNICAL_MAP_SUFFIXES = (
@@ -41,5 +39,4 @@ FBP_TECHNICAL_MAP_SUFFIXES = (
 
 FBP_PROJECT_COLLECTION_PREFIX = 'FBP - '
 
-FBP_ADDON_URL = "https://pannoli.gumroad.com/"
 FBP_SUPPORT_EMAIL = "pannoli312@gmail.com"

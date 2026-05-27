@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "frame_by_plane"
-version = "2.20.0"
+version = "2.20.1"
 name = "Frame by Plane"
 tagline = "Import image sequences as controllable animation planes"
 maintainer = "Alessandro Pannoli <pannoli312@gmail.com>"

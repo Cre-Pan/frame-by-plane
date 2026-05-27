@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Frame by Plane",
     "author": "Alessandro Pannoli",
-    "version": (2, 20, 0),
+    "version": (2, 20, 1),
     "blender": (5, 1, 0),
     "location": "View3D > Sidebar > Frame by Plane",
     "description": "Import image sequences as controllable animation planes with folders, fast import, scene split and profiling.",
@@ -12,7 +12,6 @@ import bpy
 import os
 import subprocess
 import tempfile
-import sys
 import math
 import mathutils
 import time
@@ -36,11 +35,9 @@ try:
         STRIP_COLORS_DICT,
         COLOR_ENUM_ITEMS,
         preview_collections,
-        addon_keymaps,
         FBP_SUPPORTED_IMAGE_EXT,
         FBP_TECHNICAL_MAP_SUFFIXES,
         FBP_PROJECT_COLLECTION_PREFIX,
-        FBP_ADDON_URL,
         FBP_SUPPORT_EMAIL,
     )
     from .path_utils import (
@@ -56,11 +53,9 @@ except Exception:
         STRIP_COLORS_DICT,
         COLOR_ENUM_ITEMS,
         preview_collections,
-        addon_keymaps,
         FBP_SUPPORTED_IMAGE_EXT,
         FBP_TECHNICAL_MAP_SUFFIXES,
         FBP_PROJECT_COLLECTION_PREFIX,
-        FBP_ADDON_URL,
         FBP_SUPPORT_EMAIL,
     )
     from path_utils import (
@@ -1395,7 +1390,7 @@ def update_cam_ratio_cb(self, context):
 # ── RENDER STABILITY HELPERS ─────────────────────────────────────────────────
 
 def fbp_is_rendering_now():
-    """Best-effort render guard. Avoid UI/depsgraph side effects while Blender renders."""
+    """Best-effort render guard. Avoid UI side effects while Blender renders."""
     global _fbp_render_guard_active
     if _fbp_render_guard_active:
         return True
@@ -1533,30 +1528,6 @@ def fbp_render_guard_post(scene):
     _fbp_render_guard_active = False
 
 
-def fbp_remove_live_handlers_for_background():
-    """Used by background render scripts to avoid UI/depsgraph side effects."""
-    handler_names = {
-        'fbp_frame_change_handler',
-        'fbp_depsgraph_handler',
-        'fbp_render_guard_pre',
-        'fbp_render_guard_post',
-    }
-    for handler_list in (
-        bpy.app.handlers.frame_change_pre,
-        bpy.app.handlers.frame_change_post,
-        bpy.app.handlers.depsgraph_update_post,
-        bpy.app.handlers.render_pre,
-        bpy.app.handlers.render_post,
-        bpy.app.handlers.render_cancel,
-        bpy.app.handlers.render_complete,
-    ):
-        for handler in list(handler_list):
-            if getattr(handler, "__name__", "") in handler_names:
-                try:
-                    handler_list.remove(handler)
-                except Exception:
-                    pass
-
 
 # ── HANDLERS ─────────────────────────────────────────────────────────────────
 
@@ -1571,67 +1542,6 @@ def cleanup_orphan_fbp_planes_timer():
         cleanup_orphan_fbp_planes(bpy.context)
         sync_layer_collection(bpy.context)
     return None
-
-
-@bpy.app.handlers.persistent
-def fbp_depsgraph_handler(scene, depsgraph):
-    if fbp_is_rendering_now():
-        return
-    global _last_fbp_update
-    now = time.time()
-    if now - _last_fbp_update < 0.25:
-        return
-    _last_fbp_update = now
-
-    if not bpy.context:
-        return
-
-    fbp_objs = [obj for obj in scene.objects if getattr(obj, "is_fbp_control", False)]
-    needs_sync = len(scene.fbp_layers) != len(fbp_objs)
-
-    if not needs_sync:
-        for item in scene.fbp_layers:
-            try:
-                if not item.obj or not object_in_scene(item.obj, scene):
-                    needs_sync = True
-                    break
-            except ReferenceError:
-                needs_sync = True
-                break
-
-    if needs_sync and not bpy.app.timers.is_registered(sync_layer_collection_timer):
-        bpy.app.timers.register(sync_layer_collection_timer, first_interval=0.05)
-
-    orphan_planes = []
-    for obj in scene.objects:
-        try:
-            if getattr(obj, "is_fbp_plane", False):
-                parent = obj.parent
-                if not parent or not getattr(parent, "is_fbp_control", False) or not object_in_scene(parent, scene):
-                    orphan_planes.append(obj)
-        except ReferenceError:
-            pass
-
-    if orphan_planes and not bpy.app.timers.is_registered(cleanup_orphan_fbp_planes_timer):
-        bpy.app.timers.register(cleanup_orphan_fbp_planes_timer, first_interval=0.05)
-
-    try:
-        sync_collection_colors_to_rigs(bpy.context)
-    except Exception:
-        pass
-
-    try:
-        obj = bpy.context.active_object
-        if obj and getattr(obj, "is_fbp_control", False):
-            for i, item in enumerate(scene.fbp_layers):
-                try:
-                    if item.obj == obj and scene.fbp_layer_stack_index != i:
-                        scene.fbp_layer_stack_index = i
-                        break
-                except ReferenceError:
-                    pass
-    except Exception as e:
-        print(f"[FBP] Depsgraph sync error: {e}")
 
 
 @bpy.app.handlers.persistent
@@ -4037,7 +3947,6 @@ class FBP_OT_BackgroundRenderFrames(Operator):
 
         prefix = sc.fbp_emergency_render_prefix or "frame_"
         blend_path = bpy.data.filepath
-        addon_path = os.path.abspath(__file__)
         blender_bin = bpy.app.binary_path
 
         # Repair and save before spawning the background instance.
@@ -4045,171 +3954,27 @@ class FBP_OT_BackgroundRenderFrames(Operator):
         bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
         script = f"""
-import bpy, os, sys, traceback, importlib.util
+import bpy
+import os
 
-ADDON_PATH = {addon_path!r}
 OUT_DIR = {out_dir!r}
 START = {start}
 END = {end}
 PREFIX = {prefix!r}
 
-def try_register_addon():
-    try:
-        if ADDON_PATH and os.path.exists(ADDON_PATH):
-            spec = importlib.util.spec_from_file_location("fbp_emergency_runtime", ADDON_PATH)
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules["fbp_emergency_runtime"] = mod
-            spec.loader.exec_module(mod)
-            try:
-                mod.register()
-            except Exception:
-                pass
-            return mod
-    except Exception as exc:
-        print("[FBP_BG] Addon register skipped:", exc)
-    return None
-
-mod = try_register_addon()
-
-def is_rig(obj):
-    try:
-        return bool(getattr(obj, "is_fbp_control", False))
-    except Exception:
-        return False
-
-def get_eval_mat_index_bg(rig, current_frame):
-    try:
-        images = rig.fbp_images
-        if not images or len(images) == 0:
-            return -1
-        rel_frame = current_frame - int(rig.fbp_start_frame)
-        if rel_frame < 0:
-            return -1
-        total_dur = sum(max(1, int(item.duration)) for item in images)
-        if total_dur <= 0:
-            return 0
-        loop_mode = rig.fbp_loop_mode
-        if loop_mode == 'NONE':
-            if rel_frame >= total_dur:
-                return len(images) - 1
-        elif loop_mode == 'REPEAT':
-            rel_frame = rel_frame % total_dur
-        elif loop_mode == 'PINGPONG':
-            if len(images) == 1:
-                return 0
-            mid_dur = sum(max(1, int(item.duration)) for item in images[1:-1])
-            period = total_dur + mid_dur
-            if period > 0:
-                rel_frame = rel_frame % period
-            if rel_frame >= total_dur:
-                back_rel = rel_frame - total_dur
-                acc = 0
-                for j in range(len(images) - 2, 0, -1):
-                    dur = max(1, int(images[j].duration))
-                    if acc <= back_rel < acc + dur:
-                        return j
-                    acc += dur
-                return 0
-        acc = 0
-        for i, item in enumerate(images):
-            dur = max(1, int(item.duration))
-            if acc <= rel_frame < acc + dur:
-                return i
-            acc += dur
-        return len(images) - 1
-    except Exception:
-        return -1
-
-def safe_empty_mat():
-    mat = bpy.data.materials.get("FBP_BG_SAFE_EMPTY")
-    if not mat:
-        mat = bpy.data.materials.new("FBP_BG_SAFE_EMPTY")
-    mat.use_nodes = True
-    try:
-        mat.diffuse_color = (0,0,0,0)
-        if hasattr(mat, "blend_method"):
-            mat.blend_method = 'BLEND'
-        if hasattr(mat, "surface_render_method"):
-            mat.surface_render_method = 'BLENDED'
-    except Exception:
-        pass
-    return mat
-
-def repair_plane(rig, frame):
-    plane = getattr(rig, "fbp_plane_target", None)
-    if not plane or not getattr(plane, "data", None):
-        return False
-    mesh = plane.data
-    mat = safe_empty_mat()
-    target = max(len(getattr(rig, "fbp_images", [])), 1)
-    while len(mesh.materials) < target:
-        mesh.materials.append(mat)
-    for i in range(len(mesh.materials)):
-        if mesh.materials[i] is None:
-            mesh.materials[i] = mat
-    try:
-        if not mesh.uv_layers:
-            mesh.uv_layers.new(name="UVMap")
-    except Exception:
-        pass
-    idx = get_eval_mat_index_bg(rig, frame)
-    visible = bool(getattr(rig, "fbp_is_visible", True)) and idx >= 0
-    if idx < 0:
-        idx = 0
-    idx = max(0, min(idx, len(mesh.materials) - 1))
-    for poly in mesh.polygons:
-        poly.material_index = idx
-    try:
-        mesh.update()
-    except Exception:
-        pass
-    try:
-        rig.hide_render = True
-        plane.hide_render = not visible
-    except Exception:
-        pass
-    return True
-
-# Remove live addon handlers in the background process.
-for handler_list in (
-    bpy.app.handlers.frame_change_pre,
-    bpy.app.handlers.frame_change_post,
-    bpy.app.handlers.depsgraph_update_post,
-    bpy.app.handlers.render_pre,
-    bpy.app.handlers.render_post,
-    bpy.app.handlers.render_cancel,
-    bpy.app.handlers.render_complete,
-):
-    for h in list(handler_list):
-        if getattr(h, "__name__", "").startswith("fbp_"):
-            try:
-                handler_list.remove(h)
-            except Exception:
-                pass
-
 scene = bpy.context.scene
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# Use existing render engine/settings. Output PNG sequence.
+scene.frame_start = START
+scene.frame_end = END
+scene.render.filepath = os.path.join(OUT_DIR, PREFIX)
 scene.render.image_settings.file_format = 'PNG'
-if hasattr(scene.render, "use_lock_interface"):
-    scene.render.use_lock_interface = True
 
-rigs = [obj for obj in scene.objects if is_rig(obj)]
-print(f"[FBP_BG] Rendering {{START}}-{{END}} with {{len(rigs)}} FBP rig(s)")
-for frame in range(START, END + 1):
-    try:
-        scene.frame_set(frame)
-        for rig in rigs:
-            repair_plane(rig, frame)
-        bpy.context.view_layer.update()
-        scene.render.filepath = os.path.join(OUT_DIR, f"{{PREFIX}}{{frame:04d}}.png")
-        print(f"[FBP_BG] Render frame {{frame}} -> {{scene.render.filepath}}")
-        bpy.ops.render.render(write_still=True, animation=False)
-    except Exception:
-        traceback.print_exc()
-        raise
+if hasattr(scene.render, "use_file_extension"):
+    scene.render.use_file_extension = True
 
+print(f"[FBP_BG] Rendering animation {{START}}-{{END}} -> {{scene.render.filepath}}")
+bpy.ops.render.render(animation=True)
 print("[FBP_BG] DONE")
 """
 
@@ -4779,39 +4544,13 @@ class FBP_OT_ShowImportProfile(Operator):
         return {'FINISHED'}
 
 
-# ── MENU / KEYMAP HELPERS ─────────────────────────────────────────────────────
+# ── MENU HELPERS ─────────────────────────────────────────────────────────────
 
 def draw_fbp_image_add_menu(self, context):
     layout = self.layout
     layout.separator()
     layout.operator("fbp.import_sequence", text="Frame by Plane Sequence", icon='FILE_IMAGE')
 
-
-def register_fbp_keymaps():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc:
-        return
-
-    for keymap_name, space_type in [('Object Mode', None), ('3D View', 'VIEW_3D')]:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type) if space_type else kc.keymaps.new(name=keymap_name)
-        kmi = km.keymap_items.new("fbp.duplicate_or_default", type='D', value='PRESS', shift=True)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new("fbp.delete_or_default", type='X', value='PRESS')
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new("fbp.delete_or_default", type='DEL', value='PRESS')
-        addon_keymaps.append((km, kmi))
-
-
-def unregister_fbp_keymaps():
-    for km, kmi in addon_keymaps:
-        try:
-            km.keymap_items.remove(kmi)
-        except Exception:
-            pass
-    addon_keymaps.clear()
 
 
 def register_fbp_menus():
@@ -4908,8 +4647,6 @@ def register():
     if bpy.context and not bpy.app.timers.is_registered(sync_layer_collection_timer):
         bpy.app.timers.register(sync_layer_collection_timer, first_interval=0.05)
 
-    if fbp_depsgraph_handler not in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.append(fbp_depsgraph_handler)
 
     # Remove possible duplicated legacy handlers before registering the safer one.
     for _handlers in (bpy.app.handlers.frame_change_pre, bpy.app.handlers.frame_change_post):
@@ -4930,17 +4667,13 @@ def register():
     if fbp_render_guard_post not in bpy.app.handlers.render_complete:
         bpy.app.handlers.render_complete.append(fbp_render_guard_post)
 
-    register_fbp_keymaps()
     register_fbp_menus()
 
 
 def unregister():
     clear_previews()
-    unregister_fbp_keymaps()
     unregister_fbp_menus()
 
-    if fbp_depsgraph_handler in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.remove(fbp_depsgraph_handler)
 
     for _handlers in (bpy.app.handlers.frame_change_pre, bpy.app.handlers.frame_change_post):
         for _h in list(_handlers):
